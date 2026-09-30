@@ -307,20 +307,37 @@ def get_ai_response(user):
     conversation_history.append({"role": "user", "content": user})
 
     try:
-        response = client.chat.completions.create(
-            model="openai/gpt-oss-20b",
-            messages=[
+        # Use Groq browser search for questions that need fresh information.
+        fresh_terms = [
+            "today", "current", "currently", "latest", "recent",
+            "news", "current affairs", "real time", "realtime",
+            "this week", "this month", "2026", "price", "weather",
+            "stock", "match", "score", "live"
+        ]
+        needs_web = any(term in command for term in fresh_terms)
+
+        request_data = {
+            "model": "openai/gpt-oss-20b",
+            "messages": [
                 {
                     "role": "system",
                     "content": (
                         "You are SmartAI, a helpful personal AI assistant. "
                         "Answer clearly and simply. Give student-friendly explanations. "
-                        "Remember previous messages and use them to understand follow-up questions."
+                        "Remember previous messages and use them to understand follow-up questions. "
+                        "When browser search is available, use current web information for "
+                        "time-sensitive questions and clearly distinguish current facts from older knowledge."
                     )
                 }
             ] + conversation_history[-10:],
-            max_completion_tokens=1024
-        )
+            "max_completion_tokens": 1024
+        }
+
+        if needs_web:
+            request_data["tool_choice"] = "required"
+            request_data["tools"] = [{"type": "browser_search"}]
+
+        response = client.chat.completions.create(**request_data)
 
         answer = response.choices[0].message.content
         conversation_history.append({"role": "assistant", "content": answer})
